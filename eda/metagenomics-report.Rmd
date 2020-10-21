@@ -1,0 +1,191 @@
+---
+title: "Taxa and Enzymes"
+author: "Cynthia Tang"
+date: "8/15/2020"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F)
+pkgs <- c("tidyverse", "HTSet", "ggsci", "clusterProfiler", "DESeq2", "edgeR", "DT")
+for(pkg in pkgs){
+            suppressPackageStartupMessages(library(pkg, character.only = T))
+}
+
+```
+
+## Taxonomic Analysis at Genus Level
+
+**Bifidobacterium**, **Lactobacillus**, and **Akkermansia muciniphila** is calculated by aggregating the  genus-level features that is assigned to the corresponding taxonomy labels.
+
+We used negative binomial regression with the design formula:
+
+*Outcome = Treatment + Timepoint + Treatment x Timepoint + Individual*
+
+### The histogram of the counts of **Bifidobacterium**, **Lactobacillus**, and **Akkermansia muciniphila**
+
+The distribution of count data is used to decide the regression model in the downstream analysis.
+
+```{r taxa-distribution}
+taxa <- readRDS("../data/taxa.rds")
+genus = summarize_feature(taxa, 'genus')
+genus = subset_samples(genus, genus$pdata$timepoint %in% c("pre", "post"))
+genus$pdata$timepoint = droplevels(genus$pdata$timepoint)
+genus$pdata$trt = factor(genus$pdata$trt)
+genus <- genus[c('Bifidobacterium', 'Lactobacillus', 'Akkermansia'),]
+df = t(genus$edata)
+par(mfrow = c(3, 1))
+hist(df[,1], main = colnames(df)[1], breaks = 100)
+hist(df[,2], main = colnames(df)[2], breaks = 100)
+hist(df[,3], main = colnames(df)[3], breaks = 100)
+```
+
+The histogram indicates the count data doesn't fit normal distribution. 
+It's highly skrewed towards zero. So the **negative binomial** regression should fit 
+the data better than linear model.
+
+### The differential expression at genus level
+
+Table 1. The differential expression results of all genus
+
+```{r taxa-de}
+fitTaxa <- function(taxaLevel) {
+    # taxaLevel can be "kingdom", "phylum", "class", "order", 
+    # "family","genus", "species", "strain"
+    genus = summarize_feature(taxa, taxaLevel)
+    genus = subset_samples(genus, genus$pdata$timepoint %in% c("pre", "post"))
+    genus$pdata$timepoint = droplevels(genus$pdata$timepoint)
+    genus$pdata$trt = factor(genus$pdata$trt)
+    # genus$pdata$trt = factor(genus$pdata$trt, levels = c('B', 'A'))
+    design = model.matrix(~ trt * timepoint + subject, data = genus$pdata)
+    fit = model_fit(genus, design = design, engine = "edgeR", coef = "trtB:timepointpost")
+    return(fit)
+}
+fit <- fitTaxa('genus')
+datatable(fit$results) %>% formatSignif(columns = 1:5, digits = 3)
+```
+
+Table 2. The differential expression results of **Bifidobacterium**, **Lactobacillus**, 
+and **Akkermansia muciniphila**
+
+```{r}
+datatable(fit$results[c('Bifidobacterium', 'Lactobacillus', 'Akkermansia'),])%>% 
+    formatSignif(columns = 1:5, digits = 3)
+```
+
+### Boxplots
+
+The alteration of **Bifidobacterium**, **Lactobacillus**, 
+and **Akkermansia muciniphila** in response to the two treatment over time
+
+```{r taxa-plot}
+
+boxplot <- function(feature, taxaLevel, timepoint = c("pre", "post")){
+    # FIX ME! input of feature and timepoint
+    dataset = summarize_feature(taxa, taxaLevel)
+    dataset <- subset_samples(dataset, dataset$pdata$timepoint %in% timepoint)
+    dataset$pdata$timepoint <- droplevels(dataset$pdata$timepoint)
+    HTSet::plot_boxplot(dataset, 
+                        feature = feature, 
+                        x = 'timepoint', cols = "trt", 
+                        line_by = "subject", color_by = "subject") +
+        scale_y_log10()+
+        labs(title = feature)
+}
+boxplot('Bifidobacterium', 'genus')
+boxplot('Lactobacillus', 'genus')
+boxplot('Akkermansia', 'genus')
+
+```
+
+## Enzymes
+
+We are interested in the enzymes/genes involved in short chain fatty acid production as listed below:
+
+*Acetate production* associated genes → *pta*: phosphate acetyltransferase / 
+*ackA*: acetate kinase / *poxB*: pyruvate dehydrogenase (quinone)
+
+Notably, there are two different pathways generating acetate. First is the conversion of acetyl-CoA through phosphotransacetylase (Pta) and acetate kinase (AckA) for acetate synthesis. The sencond is the conversion of pyruvate directly into acetate via pyruvate oxidase B (poxB). [1](https://jb.asm.org/content/201/13/e00147-19)
+
+![Fig. 1 Schematic representation of the major metabolic pathways of acetate metabolism](acetate-pathway.jpg)  
+
+*Propionate* production associated genes : *mmdA*: methylmalonyl-CoA decarboxylase in succinate pathway / *lcdA*: lactoylCoA dehydratase in acrylate pathway / *pduP*: propionaldehyde dehydrogenase in propanediol pathway)
+
+*Butyrate* production associated genes : *ptb*: phosphate butyryltransferase / *buk*: butyrate kinase
+
+Enzymes/genes not shown on the table are not detected in the sample.
+
+### The differential expression of the KEGG orthologues
+
+Table 3. The differential expression results of all KEGG orthologues
+
+```{r}
+functions <- readRDS("../data/functions.rds")
+
+differentialExp <- function(dataset, engine) {
+    # x is the dataset under the functions list, e.g. functions$enzyme
+    # subset dataset
+    dataset <- subset_samples(dataset, dataset$pdata$timepoint %in% c("pre", "post"))
+    dataset$pdata$timepoint <- droplevels(dataset$pdata$timepoint)
+    dataset$pdata$trt <- droplevels(dataset$pdata$trt)
+    dataset <- dataset[rowSums(dataset$edata) > 40,]
+    # fit the linear model
+    design <- model.matrix(~ 0 + trt * timepoint + subject, data = dataset$pdata)
+    fit = model_fit(dataset, design = design, engine = engine, coef = "trtB:timepointpost")
+    return(fit)
+}
+koRes <- differentialExp(functions$ko, "DESeq2")
+koRes <- cbind(koRes$results, annotation = functions$ko$fdata[rownames(koRes$results),])
+datatable(koRes) %>% formatSignif(columns = 1:5, digits = 3)
+
+```
+
+Table 4. The differential expression results of targeted KEGG orthologues
+
+Note, genes that doesn't present below are absent from the samples.
+
+```{r}
+id <- pmatch(c('pta', 'ack', 'poxB', 'mmd', 'lcd', 'pdu', 'ptb', 'buk'), functions$ko$fdata$category)
+id <- id[!is.na(id)]
+id <- rownames(functions$ko$fdata)[id]
+datatable(koRes[id,]) %>% formatSignif(columns = 1:5, digits = 3)
+```
+
+### Boxplots
+
+The alteration of **pta**, **ack**, **poxB**, **mmd**, **lcd**, **pdu**, 
+**ptb**, **buk** in response to the two treatment over time.
+
+Note, genes that doesn't present below are absent from the samples.
+
+```{r}
+boxplot_f <- function(dataset = functions$ko, feature, timepoint = c("pre", "post")){
+    dataset <- subset_samples(dataset, dataset$pdata$timepoint %in% timepoint)
+    dataset$pdata$timepoint <- droplevels(dataset$pdata$timepoint)
+    HTSet::plot_boxplot(dataset, 
+                        feature = feature, 
+                        x = 'timepoint', cols = "trt", 
+                        line_by = "subject", color_by = "subject") +
+        scale_y_log10()+
+        labs(title = paste0(feature, dataset$fdata[feature,]))
+}
+boxplot_f(feature = 'K13788')
+boxplot_f(feature = 'K00925')
+boxplot_f(feature = 'K00156')
+boxplot_f(feature = 'K17735')
+boxplot_f(feature = 'K00929')
+```
+
+## Summary
+
+Bifidobacterium which produces acetate increased after treatment A. 
+Thus, We are expecting that the genes related to acetate production also 
+increased after treatment A. Interestingly, pta, ackA didn't increase after treatment A
+while poxB did. Given the fact that these acetate-producing genes belong to two different 
+acetate producing pathways, we may speculate that bifidobacterium produced 
+acetate through the poxB pathway. Meanwhile, treatment A (fiber we guess) 
+boosted bifidobacterium in human gut.
+

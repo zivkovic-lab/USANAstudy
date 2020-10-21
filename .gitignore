@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+_Rproj_user/
+raw-data/
+other/
+Bifidobacterium/
+app/rsconnect/
+app/
+app/user_base.R/
