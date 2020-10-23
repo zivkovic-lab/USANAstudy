@@ -7,5 +7,4 @@ raw-data/
 other/
 Bifidobacterium/
 app/rsconnect/
-app/
-app/user_base.R/
+app/user_base.R

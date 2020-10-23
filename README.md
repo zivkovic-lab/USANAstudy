@@ -8,3 +8,4 @@ app/: scripts to build the shiny app
 data/: .rds files derived from raw data  
 img/: plots of lipid profile  
 src/: scripts to analyze and plot lipid profile
+eda/: analysis of taxa, function, and scfa
