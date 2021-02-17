@@ -92,7 +92,8 @@ plotBetaDiversity <- function(taxa2, ord, color_by, timecode){
     logic <- phyloseq::sample_data(taxa_relative)$timepoint_code %in% timecode
     taxa_relative2 <- phyloseq::prune_samples(logic, taxa_relative)
     phyloseq::plot_ordination(taxa_relative2, ord, "samples", color=color_by) +
-        geom_point(size = 2) + 
+        geom_text(aes(label = subject)) +
+        # geom_point(size = 2) + 
         # geom_line(aes(group = subject)) +
         # stat_ellipse() + 
         theme_bw()
