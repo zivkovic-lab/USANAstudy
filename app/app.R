@@ -5,6 +5,8 @@ source("functions-pathway.R")
 source("functions-module.R")
 source("scfa.R")
 source('diversity.R')
+source('metabolon_de.R')
+source("metabolon_pca.R")
 
 dashboardUI <- function(id) {
         ns <- NS(id)
@@ -36,7 +38,9 @@ dashboardUI <- function(id) {
                                  menuSubItem("KEGG Module", tabName = "func-module")
                         ),
                         menuItem("Metabolites", tabName = "metabolites",
-                                  menuSubItem("Short Chain Fatty Acids", tabName = "scfa")
+                                 menuSubItem("Differential Expression (fecal)", tabName = "scfa"),
+                                 menuSubItem("Differential Expression (serum)", tabName = "metab-de"),
+                                 menuSubItem("PCA and Heatmap (serum)", tabName = "metab-pca")
                         )
                 )
         )
@@ -71,6 +75,14 @@ dashboardUI <- function(id) {
                         tabItem(
                                 tabName = "scfa",
                                 scfadeUI(ns("scfa"))
+                        ),
+                        tabItem(
+                                tabName = "metab-de",
+                                metabDEUI(ns("metab-de"))
+                        ),
+                        tabItem(
+                                tabName = "metab-pca",
+                                metabPCAUI(ns("metab-pca"))
                         )
                 )
         )
@@ -87,6 +99,8 @@ dashboardServer <- function(id) {
                         pathwayServer("func-pathway")
                         funcmoduleServer("func-module")
                         scfadeServer("scfa")
+                        metabDEServer("metab-de")
+                        metabPCAServer("metab-pca")
                 }
         )
 }

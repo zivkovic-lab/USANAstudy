@@ -3,7 +3,7 @@ library(HTSet)
 library(readxl)
 library(tidyverse)
 
-scfa <- read.csv("../data-raw/scfa_concentration_normalized.csv", header = T) 
+scfa <- read.csv("../raw-data/scfa_concentration_normalized.csv", header = T) 
 pdata <- readRDS('taxa.rds')$pdata %>%
     cbind(scfa[, 1:3])
 edata <- scfa %>%
